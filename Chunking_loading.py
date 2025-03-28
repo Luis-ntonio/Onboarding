@@ -18,14 +18,28 @@ def create_table(conn, embedding_dim=384):
     """
     Crea la tabla 'chunks' en PostgreSQL utilizando la extension PGVector.
     Se asume que la extensión 'vector' esta instalada en la base de datos.
+
+    Args:
+        conn: Conexión a la base de datos.
+        embedding_dim (int): Dimensión del embedding a almacenar.
+
+    Returns:
+        None
     """
     cur = conn.cursor()
     # Asegurarse de que la extensión PGVector esté instalada
     cur.execute("CREATE EXTENSION IF NOT EXISTS vector;")
+    # Crear similarity
+    cur.execute("CREATE EXTENSION IF NOT EXISTS pg_similarity;")
+    cur.execute("CREATE EXTENSION IF NOT EXISTS pg_trgm;")
+
+
     # Crear la tabla para almacenar los chunks y sus embeddings
     cur.execute(f"""
         CREATE TABLE IF NOT EXISTS chunks (
             id SERIAL PRIMARY KEY,
+            name TEXT,
+            indexes TEXT,
             text TEXT,
             embedding VECTOR({embedding_dim})
         );
@@ -33,17 +47,17 @@ def create_table(conn, embedding_dim=384):
     conn.commit()
     cur.close()
 
-def insert_chunks(conn, chunks):
+def insert_chunks(conn, chunks, indexes, name):
     """
     Para cada chunk, se calcula su embedding y se inserta junto con el texto en la tabla.
     """
     cur = conn.cursor()
     data = []
-    for chunk in chunks:
+    for i, chunk in enumerate(chunks):
         # Obtener el embedding como lista de floats
         embedding = model.encode(chunk).tolist()
-        data.append((chunk, embedding))
-    query = "INSERT INTO chunks (text, embedding) VALUES %s"
+        data.append((name, indexes[i], chunk, embedding))
+    query = "INSERT INTO chunks (name, indexes, text, embedding) VALUES %s"
     execute_values(cur, query, data)
     conn.commit()
     cur.close()
@@ -72,13 +86,16 @@ def retrieve_knn(conn, query_text, k=5):
     query_embedding = model.encode(query_text).tolist()
     # La consulta utiliza el operador <-> (distancia euclidiana o coseno, según la configuración de PGVector)
     sql = """
-        SELECT id, text, embedding <-> %s::vector AS distance
+        SELECT name, indexes, text, 
+               embedding <-> %s::vector AS distance,
+               similarity(indexes::text, %s::text) AS text_similarity
         FROM chunks
-        ORDER BY distance
+        WHERE similarity(indexes::text, %s::text) > 0
+        ORDER BY text_similarity DESC
         LIMIT %s;
     """
 
-    cur.execute(sql, (query_embedding, k))
+    cur.execute(sql, (query_embedding, query_text, query_text, k))
     results = cur.fetchall()
     cur.close()
     return results
@@ -94,7 +111,7 @@ def create_conn():
 
 if __name__ == "__main__":
     conn = create_conn()
-    
+
     create_table(conn)
     
 
