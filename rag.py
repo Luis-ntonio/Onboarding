@@ -1,6 +1,6 @@
-from Chunking_loading import retrieve_knn, create_conn
-from First_call import claude_call, bedrock_runtime
-from Parser_pdf2 import remove_connector_words, normalize_text 
+from parser.Chunking_loading import retrieve_knn, create_conn
+from LLM import claude_call, bedrock_runtime
+from parser.Parser_pdf2 import remove_connector_words, normalize_text 
 from Questions import Querys
 
 def rag_call(query_text, conn, k=5):

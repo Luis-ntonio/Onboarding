@@ -2,7 +2,7 @@ import re
 import unicodedata
 from PyPDF2 import PdfReader
 import spacy
-from Chunking_loading import create_table, insert_chunks, create_conn
+from parser.Chunking_loading import create_table, insert_chunks, create_conn
 
 try:
     nlp = spacy.load("es_core_news_sm")
@@ -239,40 +239,6 @@ def remove_pagination_words(texto: str) -> str:
     texto = re.sub(r'\s+', ' ', texto).strip()
     return texto
 
-def chunk_text(texto: str, indices: list[str], chunk_size: int=200, overlap: int=25) -> list:
-    """
-    Divide el texto en fragmentos de aproximadamente 'chunk_size' palabras con un solapamiento de 'overlap' palabras.
-    Esto es util para sistemas RAG que requieren fragmentos manejables para indexacion y busqueda.
 
-    Args:
-        texto (str): Texto del documento.
-        chunk_size (int): Tamanho de los fragmentos.
-        overlap (int): Cantidad de palabras de solapamiento entre fragmentos.
-
-    Returns:
-        list: Lista de fragmentos (chunks) del texto.
-    """
-    palabras = texto.split()
-    chunks = []
-    indexes_used = []
-    inicio = 0
-    last_index = ""
-
-    while inicio < len(palabras):
-        index_ = []
-        if last_index != "":
-            index_.append(last_index)
-
-        fin = min(inicio + chunk_size, len(palabras))
-        chunk = " ".join(palabras[inicio:fin])
-        for index in indices:
-            if index in chunk:
-                last_index = index
-                index_.append(index)
-
-        indexes_used.append(index_)
-        chunks.append(chunk)
-        inicio += chunk_size - overlap
-    return chunks, indexes_used
 
 

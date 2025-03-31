@@ -1,5 +1,8 @@
-from Parser_pdf2 import extraer_texto, eliminar_indice, remove_connector_words, remove_pagination_words, chunk_text
-from Chunking_loading import create_table, insert_chunks, create_conn
+from parser.Parser_pdf2 import extraer_texto, eliminar_indice, remove_connector_words, remove_pagination_words
+from parser.Chunking_loading import chunk_text, chunk_text_indexes
+from db.embedding_db import create_embedding_table, insert_embedding_chunks
+from db.difference_db import create_difference_table, insert_differences_chunks
+from db.connection import create_conn
 
 
 def parser_uniformizador(pdf_path1: str, pdf_path2: str, salida_base: str) -> None:
@@ -44,6 +47,13 @@ def parser_uniformizador(pdf_path1: str, pdf_path2: str, salida_base: str) -> No
     
     chunks1, indexes1_ = chunk_text(texto1, indexes1)
     chunks2, indexes2_ = chunk_text(texto2, indexes2)
+
+    #get unique indexes merge
+    indexes_diff = list(set(indexes1_).difference(set(indexes2_)))
+    indexes_diff += list(set(indexes2_).difference(set(indexes1_)))
+    indexes_diff = sorted(indexes_diff)
+
+    chunk_diff1, chunk_diff2, indexes_diff = chunk_text_indexes(texto1, texto2, indexes_diff)
     
     with open(salida_base + "_1.txt", "w", encoding="utf-8") as f:
         f.write(texto1)
@@ -58,9 +68,11 @@ def parser_uniformizador(pdf_path1: str, pdf_path2: str, salida_base: str) -> No
             f.write(chunk + "\n")
     
     conn = create_conn()
-    create_table(conn)
-    insert_chunks(conn, chunks1, indexes1_, name1)
-    insert_chunks(conn, chunks2, indexes2_, name2)
+    create_embedding_table(conn)
+    insert_embedding_chunks(conn, chunks1, indexes1_, name1)
+    insert_embedding_chunks(conn, chunks2, indexes2_, name2)
+    create_difference_table(conn)
+    insert_differences_chunks(conn, chunk_diff1, indexes_diff, name1)
     conn.close()
 
     print("Proceso completado. Archivos guardados:")
