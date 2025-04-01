@@ -37,13 +37,14 @@ def create_difference_table(conn, embedding_dim=384):
         CREATE TABLE IF NOT EXISTS differences (
             id SERIAL PRIMARY KEY,
             indexes TEXT,
-            text_diferencias TEXT
+            text_diferences TEXT,
+            embedding VECTOR({embedding_dim})
         );
     """)
     conn.commit()
     cur.close()
 
-def insert_differences_chunks(conn, chunks1, chunks2, indexes):
+def insert_differences_chunks(conn, chunks1, indexes):
     """
     Para cada par de chunks, se calcula su embedding, la similitud, y se inserta junto con los textos en la tabla.
     
@@ -55,20 +56,16 @@ def insert_differences_chunks(conn, chunks1, chunks2, indexes):
     """
     cur = conn.cursor()
     data = []
-    for i, (chunk1, chunk2) in enumerate(zip(chunks1, chunks2)):
+    for i, chunk1 in enumerate(chunks1):
         # Calcular embeddings para ambos chunks
         embedding1 = model.encode(chunk1).tolist()
-        embedding2 = model.encode(chunk2).tolist()
-
-        # Calcular similitud entre los embeddings (ejemplo: producto punto)
-        similarity = np.dot(embedding1, embedding2) / (np.linalg.norm(embedding1) * np.linalg.norm(embedding2))
 
         # Preparar los datos para la inserción
-        data.append((indexes[i], chunk1, chunk2, similarity, embedding1))
+        data.append((indexes[i], chunk1, embedding1))
 
     # Query para insertar en la tabla 'differences'
     query = f"""
-        INSERT INTO differences (indexes, text_1, text_2, similarity, embedding)
+        INSERT INTO differences (indexes, text_diferences, embedding)
         VALUES %s
     """
     execute_values(cur, query, data)

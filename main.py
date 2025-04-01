@@ -53,7 +53,8 @@ def parser_uniformizador(pdf_path1: str, pdf_path2: str, salida_base: str) -> No
     indexes_diff = list(set(indexes1).intersection(set(indexes2)))
     indexes_diff = sorted(indexes_diff)
 
-    indexes_diff, chunk_diff1, chunk_diff2 = chunk_text_indexes_differences(texto1, texto2, indexes_diff)
+    indexes_diff_, differences = chunk_text_indexes_differences(texto1, texto2, indexes_diff)
+    print(indexes_diff_)
     
     with open(salida_base + "_1.txt", "w", encoding="utf-8") as f:
         f.write(texto1)
@@ -72,7 +73,7 @@ def parser_uniformizador(pdf_path1: str, pdf_path2: str, salida_base: str) -> No
     insert_embedding_chunks(conn, chunks1, indexes1_, name1)
     insert_embedding_chunks(conn, chunks2, indexes2_, name2)
     create_difference_table(conn)
-    insert_differences_chunks(conn, chunk_diff1, chunk_diff2, indexes_diff)
+    insert_differences_chunks(conn, differences, indexes_diff_)
     conn.close()
 
     print("Proceso completado. Archivos guardados:")

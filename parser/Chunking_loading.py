@@ -1,6 +1,5 @@
-import math
-import psycopg2
 import difflib
+from LLM import call_differences, bedrock_runtime
 from psycopg2.extras import execute_values
 import re
 from sentence_transformers import SentenceTransformer
@@ -15,22 +14,14 @@ def retrieve_knn_difference(conn, query_text, k=5):
     query_embedding = model.encode(query_text).tolist()
     # La consulta utiliza el operador <-> (distancia euclidiana o coseno, según la configuración de PGVector)
     sql = """
-        WITH ranked_differences AS (
-            SELECT ID, indexes, text_1, text_2, similarity,
-                   embedding <-> %s::vector AS distance,
-                   similarity(indexes::text, %s::text) AS text_similarity,
-                   RANK() OVER (ORDER BY similarity(indexes::text, %s::text) DESC) AS rank
-            FROM differences
-            WHERE similarity(indexes::text, %s::text) > 0
-            AND similarity < 0.9
-        )
-        SELECT ID, indexes, text_1, text_2, similarity, distance, text_similarity
-        FROM ranked_differences
-        WHERE rank = 1
-        ORDER BY ID ASC;
+    SELECT indexes, text_diferences, 
+           embedding <-> %s::vector AS distance
+    FROM differences
+    ORDER BY distance ASC
+    LIMIT %s;
     """
 
-    cur.execute(sql, (query_embedding, query_text, query_text, k))
+    cur.execute(sql, (query_embedding, k))
     results = cur.fetchall()
     cur.close()
     return results
@@ -44,11 +35,11 @@ def retrieve_knn_QA(conn, query_text, k=5):
     # La consulta utiliza el operador <-> (distancia euclidiana o coseno, según la configuración de PGVector)
     sql = """
         SELECT name, indexes, text, 
-               embedding <-> %s::vector AS distance,
-               similarity(indexes::text, %s::text) AS text_similarity
+            embedding <-> %s::vector AS distance,
+            similarity(indexes::text, %s::text) AS text_similarity
         FROM chunks
         WHERE similarity(indexes::text, %s::text) > 0
-        ORDER BY text_similarity DESC
+        ORDER BY distance ASC
         LIMIT %s;
     """
 
@@ -126,8 +117,9 @@ def chunk_text_indexes_differences(texto1: str, texto2: str, indices: list[str])
           - list[list[str]]: Similarly, a list of lists for texto2 differences.
     """
     markers = []
-    diffs_text1 = []
-    diffs_text2 = []
+    differences = []
+
+    
     
     for i, marker in enumerate(indices):
         # Find segment boundaries in texto1
@@ -135,6 +127,7 @@ def chunk_text_indexes_differences(texto1: str, texto2: str, indices: list[str])
         if start1 == -1:
             segment1 = ""
         else:
+            markers.append(marker)
             if i < len(indices) - 1:
                 next_marker = indices[i+1]
                 end1 = texto1.find(next_marker, start1)
@@ -159,18 +152,16 @@ def chunk_text_indexes_differences(texto1: str, texto2: str, indices: list[str])
             segment2 = texto2[start2:end2].strip()
         
         # Split the segments into sentences.
-        sentences1 = split_into_sentences(segment1)
-        sentences2 = split_into_sentences(segment2)
         
-        # Use difflib.ndiff to compute the differences.
-        # Lines starting with '- ' indicate sentences in text1 that are not in text2.
-        # Lines starting with '+ ' indicate sentences in text2 that are not in text1.
-        diff = list(difflib.ndiff(sentences1, sentences2))
-        diff_sentences1 = [line[2:] for line in diff if line.startswith("- ")]
-        diff_sentences2 = [line[2:] for line in diff if line.startswith("+ ")]
-        
-        markers.append(marker)
-        diffs_text1.append(diff_sentences1)
-        diffs_text2.append(diff_sentences2)
+        prompt = (
+        f"Utilizando el siguiente contexto responde la pregunta:\n\n"
+        f"Context:\nTexto 1: {segment1} Texto 2: {segment2}\n\n"
+        f"Question: ¿Cuales son las diferencias entre los Textos?\n"
+        f"Answer:"
+        )
+        # Call the LLM to get the differences
+        response = call_differences(bedrock_runtime, prompt, '¿Cuales son las diferencias entre los Textos?')
+        difference = response['content'][0]['text'].strip()
+        differences.append(difference)
     
-    return markers, diffs_text1, diffs_text2
+    return markers, differences

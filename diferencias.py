@@ -7,3 +7,11 @@ diferencias = [
     'distinciones',
     'distinción',
 ]
+
+plurales = [
+    "secciones",
+    "Secciones"
+    "Indices",
+    "indices",
+    
+]

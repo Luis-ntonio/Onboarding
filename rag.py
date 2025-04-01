@@ -27,27 +27,34 @@ def rag_call_differences(query_text, conn, k=5):
     query_text_tmp = normalize_text(query_text_tmp)
 
     # Retrieve the k nearest chunks using the retrieval function defined earlier
-    results = retrieve_knn_difference(conn, query_text_tmp, k)
-    # Concatenate the retrieved chunks to form the context
-    texto_1 = " ".join([row[2] for row in results])
-    texto_2 = " ".join([row[3] for row in results])
-    print("Texto 1:", texto_1)
-    print("Texto 2:", texto_2)
-    context = "Estos son los textos de solicitados para comparar \n Texto 1:\n" + texto_1 + "\n\nTexto 2:\n" + texto_2
-    """for i in results:
-        print(i[0], i[3], i[4], i[5])"""
-    # Build a prompt that provides context and then asks the query
     prompt = (
-        f"Utilizando el siguiente contexto responde la pregunta:\n\n"
-        f"Context:\n{context}\n\n"
-        f"Question: ¿Cuales son las diferencias entre los Texto 1 y Texto 2?\n"
-        f"Answer:"
+        f"Estas encargado de analizar preguntas para extraer secciones, apartados o indices e indicar si existe uno o mas de uno.\n\n"
+        f"Options: UNA | MAS DE UNA\n"
+        f"Example: ¿Cuáles son las diferencias en los apartados 1. antecedentes y 2.1 Motivacion?\n"
+        f"Template Answer: MAS DE UNA\n"
+        f"Example: ¿Cuáles son las diferencias en el Indice 1?\n"
+        f"Template Answer: UNA\n"
+        f"Answer: "
     )
-
     response = claude_call(bedrock_runtime, prompt, query_text)
-    
     # Extract and return the generated answer
     answer = response['content'][0]['text'].strip()
+    if answer == "UNA":
+        k = 1
+        results = retrieve_knn_difference(conn, query_text_tmp, k)
+        answer = "\n---\n".join([row[1] for row in results])
+    else:
+        results = retrieve_knn_difference(conn, query_text_tmp, k)
+        answer = "\n---\n".join([row[1] for row in results])
+        prompt = (
+            f"Estas encargado de analizar y resumir texto sin perjudicar el contexto\n\n"
+            f"Answer: "
+        )
+        response = claude_call(bedrock_runtime, prompt, answer)
+        # Extract and return the generated answer
+        answer = response['content'][0]['text'].strip()
+
+    # Concatenate the retrieved chunks to form the context
     return answer
 
 def rag_call_QA(query_text, conn, k=5):

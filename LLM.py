@@ -70,6 +70,23 @@ def embed_call(bedrock : boto3.client, chunk_message : str):
 
     return json.loads(response['body'].read().decode('utf-8'))
  
+def call_differences(bedrock : boto3.client, 
+                     user_message : str, 
+                     query : str,
+                     model_id = 'anthropic.claude-3-5-sonnet-20240620-v1:0'):
+    
+    body = claude_body(user_message, query=query)
+
+    response = bedrock.invoke_model(
+        body = body,
+        modelId = model_id,
+        contentType = 'application/json',
+        accept = 'application/json'
+    )    
+
+    return json.loads(response['body'].read().decode('utf-8'))
+
+
 if __name__ == "__main__":
     print(claude_call(bedrock_runtime, "Hello", "How are you?"))
     print(embed_call(bedrock_runtime, "Hello, how are you?"))
