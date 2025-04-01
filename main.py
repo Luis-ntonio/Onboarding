@@ -1,5 +1,5 @@
 from parser.Parser_pdf2 import extraer_texto, eliminar_indice, remove_connector_words, remove_pagination_words
-from parser.Chunking_loading import chunk_text, chunk_text_indexes
+from parser.Chunking_loading import chunk_text, chunk_text_indexes_differences
 from db.embedding_db import create_embedding_table, insert_embedding_chunks
 from db.difference_db import create_difference_table, insert_differences_chunks
 from db.connection import create_conn
@@ -53,7 +53,7 @@ def parser_uniformizador(pdf_path1: str, pdf_path2: str, salida_base: str) -> No
     indexes_diff = list(set(indexes1).intersection(set(indexes2)))
     indexes_diff = sorted(indexes_diff)
 
-    chunk_diff1, chunk_diff2, indexes_diff = chunk_text_indexes(texto1, texto2, indexes_diff)
+    indexes_diff, chunk_diff1, chunk_diff2 = chunk_text_indexes_differences(texto1, texto2, indexes_diff)
     
     with open(salida_base + "_1.txt", "w", encoding="utf-8") as f:
         f.write(texto1)

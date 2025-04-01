@@ -1,97 +1,5 @@
-import math
-import psycopg2
-import difflib
-from psycopg2.extras import execute_values
 import re
-from sentence_transformers import SentenceTransformer
-import numpy as np
-from db.connection import model
-
-def retrieve_knn_difference(conn, query_text, k=5):
-    """
-    Dado un query, se obtiene su embedding y se recuperan los K chunks más similares usando la busqueda de vecinos.
-    """
-    cur = conn.cursor()
-    query_embedding = model.encode(query_text).tolist()
-    # La consulta utiliza el operador <-> (distancia euclidiana o coseno, según la configuración de PGVector)
-    sql = """
-        WITH ranked_differences AS (
-            SELECT ID, indexes, text_1, text_2, similarity,
-                   embedding <-> %s::vector AS distance,
-                   similarity(indexes::text, %s::text) AS text_similarity,
-                   RANK() OVER (ORDER BY similarity(indexes::text, %s::text) DESC) AS rank
-            FROM differences
-            WHERE similarity(indexes::text, %s::text) > 0
-            AND similarity < 0.9
-        )
-        SELECT ID, indexes, text_1, text_2, similarity, distance, text_similarity
-        FROM ranked_differences
-        WHERE rank = 1
-        ORDER BY ID ASC;
-    """
-
-    cur.execute(sql, (query_embedding, query_text, query_text, k))
-    results = cur.fetchall()
-    cur.close()
-    return results
-
-def retrieve_knn_QA(conn, query_text, k=5):
-    """
-    Dado un query, se obtiene su embedding y se recuperan los K chunks más similares usando la busqueda de vecinos.
-    """
-    cur = conn.cursor()
-    query_embedding = model.encode(query_text).tolist()
-    # La consulta utiliza el operador <-> (distancia euclidiana o coseno, según la configuración de PGVector)
-    sql = """
-        SELECT name, indexes, text, 
-               embedding <-> %s::vector AS distance,
-               similarity(indexes::text, %s::text) AS text_similarity
-        FROM chunks
-        WHERE similarity(indexes::text, %s::text) > 0
-        ORDER BY text_similarity DESC
-        LIMIT %s;
-    """
-
-    cur.execute(sql, (query_embedding, query_text, query_text, k))
-    results = cur.fetchall()
-    cur.close()
-    return results
-
-def chunk_text(texto: str, indices: list[str], chunk_size: int=200, overlap: int=25) -> list:
-    """
-    Divide el texto en fragmentos de aproximadamente 'chunk_size' palabras con un solapamiento de 'overlap' palabras.
-    Esto es util para sistemas RAG que requieren fragmentos manejables para indexacion y busqueda.
-
-    Args:
-        texto (str): Texto del documento.
-        chunk_size (int): Tamanho de los fragmentos.
-        overlap (int): Cantidad de palabras de solapamiento entre fragmentos.
-
-    Returns:
-        list: Lista de fragmentos (chunks) del texto.
-    """
-    palabras = texto.split()
-    chunks = []
-    indexes_used = []
-    inicio = 0
-    last_index = ""
-
-    while inicio < len(palabras):
-        index_ = []
-        if last_index != "":
-            index_.append(last_index)
-
-        fin = min(inicio + chunk_size, len(palabras))
-        chunk = " ".join(palabras[inicio:fin])
-        for index in indices:
-            if index in chunk:
-                last_index = index
-                index_.append(index)
-
-        indexes_used.append(index_)
-        chunks.append(chunk)
-        inicio += chunk_size - overlap
-    return chunks, indexes_used
+import difflib
 
 def split_into_sentences(text: str) -> list[str]:
     """
@@ -174,3 +82,30 @@ def chunk_text_indexes_differences(texto1: str, texto2: str, indices: list[str])
         diffs_text2.append(diff_sentences2)
     
     return markers, diffs_text1, diffs_text2
+
+# Example usage:
+if __name__ == "__main__":
+    # Sample texts with indices (for demonstration purposes)
+    texto1 = (
+        "ÍNDICE. I.TERMINOS DE REFERENCIA. "
+        "1.DENOMINACIÓN DE LA CONTRATACIÓN. Some sentence unique to text1. "
+        "2.FINALIDAD PÚBLICA. Common sentence. Another unique sentence in text1. "
+        "3.ANTECEDENTES. Common sentence. End of section."
+    )
+    texto2 = (
+        "ÍNDICE. I.TERMINOS DE REFERENCIA. "
+        "1.DENOMINACIÓN DE LA CONTRATACIÓN. Common sentence. "
+        "2.FINALIDAD PÚBLICA. Common sentence. A different unique sentence in text2. "
+        "3.ANTECEDENTES. Common sentence. End of section."
+    )
+    
+    indices = [
+        "ÍNDICE. I.TERMINOS DE REFERENCIA.",
+        "1.DENOMINACIÓN DE LA CONTRATACIÓN.",
+        "2.FINALIDAD PÚBLICA.",
+        "3.ANTECEDENTES."
+    ]
+    
+    markers, diffs_t1, diffs_t2 = chunk_text_indexes_differences(texto1, texto2, indices)
+    
+    print(diffs_t1)

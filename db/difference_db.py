@@ -37,10 +37,7 @@ def create_difference_table(conn, embedding_dim=384):
         CREATE TABLE IF NOT EXISTS differences (
             id SERIAL PRIMARY KEY,
             indexes TEXT,
-            text_1 TEXT,
-            text_2 TEXT,
-            similarity FLOAT,
-            embedding VECTOR({embedding_dim})
+            text_diferencias TEXT
         );
     """)
     conn.commit()
