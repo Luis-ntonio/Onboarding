@@ -2,7 +2,6 @@ import re
 import unicodedata
 from PyPDF2 import PdfReader
 import spacy
-from parser.Chunking_loading import create_table, insert_chunks, create_conn
 
 try:
     nlp = spacy.load("es_core_news_sm")
