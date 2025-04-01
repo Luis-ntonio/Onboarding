@@ -2,7 +2,7 @@ import psycopg2
 from psycopg2.extras import execute_values
 from sentence_transformers import SentenceTransformer
 import numpy as np
-from connection import model
+from db.connection import model
 
 
 def create_embedding_table(conn, embedding_dim=384):

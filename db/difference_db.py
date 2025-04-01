@@ -1,9 +1,16 @@
-import psycopg2
-from psycopg2.extras import execute_values
+from psycopg2.extensions import register_adapter, AsIs
 from sentence_transformers import SentenceTransformer
 import numpy as np
-from connection import model
+from db.connection import model
+from psycopg2.extras import execute_values
 
+def addapt_numpy_float64(numpy_float64):
+    return AsIs(numpy_float64)
+def addapt_numpy_int64(numpy_int64):
+    return AsIs(numpy_int64)
+
+register_adapter(np.float64, addapt_numpy_float64)
+register_adapter(np.int64, addapt_numpy_int64) 
 
 def create_difference_table(conn, embedding_dim=384):
     """
@@ -39,18 +46,34 @@ def create_difference_table(conn, embedding_dim=384):
     conn.commit()
     cur.close()
 
-
-def insert_differences_chunks(conn, chunks, indexes, name):
+def insert_differences_chunks(conn, chunks1, chunks2, indexes):
     """
-    Para cada chunk, se calcula su embedding y se inserta junto con el texto en la tabla.
+    Para cada par de chunks, se calcula su embedding, la similitud, y se inserta junto con los textos en la tabla.
+    
+    Args:
+        conn: Conexión a la base de datos.
+        chunks1 (list): Lista de chunks del primer texto.
+        chunks2 (list): Lista de chunks del segundo texto.
+        indexes (list): Lista de índices correspondientes a los chunks.
     """
     cur = conn.cursor()
     data = []
-    for i, chunk in enumerate(chunks):
-        # Obtener el embedding como lista de floats
-        embedding = model.encode(chunk).tolist()
-        data.append((name, indexes[i], chunk, embedding))
-    query = "INSERT INTO differences (name, indexes, text, embedding) VALUES %s"
+    for i, (chunk1, chunk2) in enumerate(zip(chunks1, chunks2)):
+        # Calcular embeddings para ambos chunks
+        embedding1 = model.encode(chunk1).tolist()
+        embedding2 = model.encode(chunk2).tolist()
+
+        # Calcular similitud entre los embeddings (ejemplo: producto punto)
+        similarity = np.dot(embedding1, embedding2) / (np.linalg.norm(embedding1) * np.linalg.norm(embedding2))
+
+        # Preparar los datos para la inserción
+        data.append((indexes[i], chunk1, chunk2, similarity, embedding1))
+
+    # Query para insertar en la tabla 'differences'
+    query = f"""
+        INSERT INTO differences (indexes, text_1, text_2, similarity, embedding)
+        VALUES %s
+    """
     execute_values(cur, query, data)
     conn.commit()
     cur.close()
