@@ -12,7 +12,7 @@ def addapt_numpy_int64(numpy_int64):
 register_adapter(np.float64, addapt_numpy_float64)
 register_adapter(np.int64, addapt_numpy_int64) 
 
-def create_difference_table(conn, embedding_dim=384):
+def create_comparison_table(conn, embedding_dim=384):
     """
     Crea la tabla 'chunks' en PostgreSQL utilizando la extension PGVector.
     Se asume que la extensión 'vector' esta instalada en la base de datos.
@@ -34,40 +34,35 @@ def create_difference_table(conn, embedding_dim=384):
 
     # Crear la tabla para almacenar los chunks y sus embeddings
     cur.execute(f"""
-        CREATE TABLE IF NOT EXISTS differences (
+        CREATE TABLE IF NOT EXISTS comparison (
             id SERIAL PRIMARY KEY,
-            indexes TEXT,
-            text_diferences TEXT,
-            text TEXT,
-            embedding VECTOR({embedding_dim})
+            question TEXT,
+            rag_answer TEXT,
+            gpt_answer TEXT,
+            bert_metrics TEXT
         );
     """)
     conn.commit()
     cur.close()
 
-def insert_differences_chunks(conn, differences, chunks1, indexes):
+def insert_comparison(conn, question, rag_answer, gpt_answer="", bert_metrics=""):
     """
-    Para cada par de chunks, se calcula su embedding, la similitud, y se inserta junto con los textos en la tabla.
-    
+    Inserta una comparación en la tabla 'comparison'.
+
     Args:
         conn: Conexión a la base de datos.
-        chunks1 (list): Lista de chunks del primer texto.
-        chunks2 (list): Lista de chunks del segundo texto.
-        indexes (list): Lista de índices correspondientes a los chunks.
+        question (str): Pregunta realizada.
+        rag_answer (str): Respuesta generada por RAG.
+        gpt_answer (str): Respuesta generada por GPT.
+        bert_metrics (str): Métricas de similitud de BERT.
+
+    Returns:
+        None
     """
     cur = conn.cursor()
-    data = []
-    for i, (difference, chunk1) in enumerate(zip(differences, chunks1)):
-        embedding1 = model.encode(chunk1).tolist()
-
-        # Preparar los datos para la inserción
-        data.append((indexes[i], difference, chunk1, embedding1))
-
-    # Query para insertar en la tabla 'differences'
-    query = f"""
-        INSERT INTO differences (indexes, text_diferences, text, embedding)
-        VALUES %s
-    """
-    execute_values(cur, query, data)
+    cur.execute("""
+        INSERT INTO comparison (question, rag_answer, gpt_answer, bert_metrics)
+        VALUES (%s, %s, %s, %s);
+    """, (question, rag_answer, gpt_answer, bert_metrics))
     conn.commit()
     cur.close()

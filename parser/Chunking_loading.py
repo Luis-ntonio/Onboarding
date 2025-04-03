@@ -6,27 +6,41 @@ from sentence_transformers import SentenceTransformer
 import numpy as np
 from db.connection import model
 
-def retrieve_knn_difference(conn, query_text, k=5):
+def retrieve_knn_difference(conn, list_indexes, query_text, k=5):
     """
     Dado un query, se obtiene su embedding y se recuperan los K chunks más similares usando la busqueda de vecinos.
     """
+    list_indexes = str(list_indexes).replace("[","").replace("]","")
     cur = conn.cursor()
     query_embedding = model.encode(query_text).tolist()
     # La consulta utiliza el operador <-> (distancia euclidiana o coseno, según la configuración de PGVector)
-    sql = """
-    SELECT indexes, text_diferences, 
-           embedding <-> %s::vector AS distance
-    FROM differences
-    ORDER BY distance ASC
-    LIMIT %s;
-    """
+    if list_indexes == '':
+        sql = """
+        SELECT indexes, text_diferences, 
+               embedding <-> %s::vector AS distance
+        FROM differences
+            ORDER BY distance ASC
+            LIMIT %s;
+        """
+        cur.execute(sql, (query_embedding, k))
+        results = cur.fetchall()
+        cur.close()
+    else:
+        sql = """
+        SELECT similarity(indexes::text, %s::text) AS text_similarity, text_diferences, 
+            embedding <-> %s::vector AS distance
+        FROM differences
+            WHERE similarity(indexes::text, %s::text) > 0
+            ORDER BY distance ASC
+            LIMIT %s;
+        """
 
-    cur.execute(sql, (query_embedding, k))
-    results = cur.fetchall()
-    cur.close()
+        cur.execute(sql, (list_indexes, query_embedding, list_indexes, k))
+        results = cur.fetchall()
+        cur.close()
     return results
 
-def retrieve_knn_QA(conn, query_text, k=5):
+def retrieve_knn_QA(conn, query_text, list_indexes, k=5):
     """
     Dado un query, se obtiene su embedding y se recuperan los K chunks más similares usando la busqueda de vecinos.
     """
@@ -43,7 +57,7 @@ def retrieve_knn_QA(conn, query_text, k=5):
         LIMIT %s;
     """
 
-    cur.execute(sql, (query_embedding, query_text, query_text, k))
+    cur.execute(sql, (query_embedding, list_indexes, list_indexes, k))
     results = cur.fetchall()
     cur.close()
     return results
