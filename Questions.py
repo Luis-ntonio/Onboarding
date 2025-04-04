@@ -9,5 +9,5 @@ Querys = [
     "¿Cuáles son las diferencias en la sección de introducción?",
     "¿Las certificaciones requeridas para el proveedor de nube pública son las mismas en ambas versiones del documento?",
     "De acuerdo a la sección 5. ¿Cuál es el periodo de garantía que debe tener toda la solución?",
-    
 ]
+
