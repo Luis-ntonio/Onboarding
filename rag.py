@@ -147,6 +147,7 @@ for query in Querys:
         answer = rag_call_QA(query, conn, list_indexes)
 
     # Insert the comparison into the database
-    insert_comparison(conn, query, answer)
+    print("answer", answer)
+    #insert_comparison(conn, query, answer)
 
 conn.close()
